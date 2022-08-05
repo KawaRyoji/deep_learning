@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional, Tuple
 
 import matplotlib as mpl
 import numpy as np
@@ -8,16 +8,16 @@ import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
 
-from prototype.dnn import LearningHistory
+from deep_learning.dnn import LearningHistory
 
 
 def graph_settings(
     title: Optional[str] = None,
     xlabel: Optional[str] = None,
     ylabel: Optional[str] = None,
-    xlim: Optional[str] = None,
-    ylim: Optional[str] = None,
-    legend: Optional[str] = None,
+    xlim: Optional[Tuple[Any, Any]] = None,
+    ylim: Optional[Tuple[Any, Any]] = None,
+    legend: Optional[List[str]] = None,
     fig_path: Optional[str] = None,
     legend_loc: str = "best",
     tick: bool = True,
@@ -101,7 +101,7 @@ class HistoryPlotter:
             self.plot(metric, os.path.join(dir_path, metric + ".png"))
 
     def box_plot(
-        self, path: str, stripplot: bool = False, metrics: Optional[List[str]] = None
+        self, path: str, strip_plot: bool = False, metrics: Optional[List[str]] = None
     ) -> None:
         if metrics is None:
             metrics = list(filter(lambda c: not c == "loss", self.history.metrics))
@@ -112,7 +112,7 @@ class HistoryPlotter:
         fig, ax = plt.subplots()
         sns.boxplot(x="variable", y="value", data=melted, whis=[0, 100], ax=ax)
 
-        if stripplot:
+        if strip_plot:
             sns.stripplot(
                 x="variable", y="value", data=melted, jitter=True, color="black", ax=ax
             )
@@ -140,7 +140,7 @@ class HistoryPlotter:
             max(list(map(lambda history: history.of_metric(metric).max(), histories))),
         )  # 学習履歴の評価値の最小、最大を計算
 
-        label = label[4:] if metric.startswith("val_") else metric
+        label = metric[4:] if metric.startswith("val_") else metric
         label = metric.replace("_", " ")
 
         plt.figure()
@@ -183,11 +183,11 @@ class HistoryPlotter:
             legend = ["history{}".format(i + 1) for i in range(len(histories))]
         else:
             if len(legend) != len(histories):
-                raise "history_pathsとlegendの次元を一致させてください"
+                raise RuntimeError("history_pathsとlegendの次元を一致させてください")
 
         if metrics is None:
             metrics = histories[0].metrics
-            metrics = list(filter(lambda c: not c == "loss"))
+            metrics = list(filter(lambda c: not c == "loss", histories))
 
         filtered_histories = list(
             map(lambda history: history.filter_by_metrics(metrics), histories)

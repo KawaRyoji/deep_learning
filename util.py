@@ -1,5 +1,6 @@
 import json
 from dataclasses import asdict
+import os
 from typing import Any, Callable
 
 
@@ -21,3 +22,9 @@ class JSONObject:
     @staticmethod
     def __validate_path(path: str):
         return path if path.endswith(".json") else path + ".json"
+
+
+def dir2paths(dir_path: str):
+    paths = list(map(lambda path: os.path.join(dir_path, path), os.listdir(dir_path)))
+
+    return paths

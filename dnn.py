@@ -12,8 +12,8 @@ from tensorflow.keras.losses import Loss
 from tensorflow.keras.metrics import Metric
 from tensorflow.keras.optimizers import Adam, Optimizer
 
-from prototype.dataset import DataSequence
-from prototype.util import JSONObject
+from deep_learning.dataset import DataSequence
+from deep_learning.util import JSONObject
 
 
 class DNN(metaclass=ABCMeta):
@@ -26,7 +26,7 @@ class DNN(metaclass=ABCMeta):
         self.loss = loss
         self.optimizer = optimizer
         self.metrics = metrics
-        self.__model = None
+        self.__model : Model = None
 
     @abstractmethod
     def definition(self, *args, **kwargs) -> Model:
@@ -57,7 +57,7 @@ class DNN(metaclass=ABCMeta):
         if check_point is not None:
             init_epoch = check_point.epoch
             self.load(check_point.weight_path)
-        
+
         self.__model.fit(
             x=train_sequence,
             validation_data=valid_sequence,
@@ -87,7 +87,7 @@ class DNN(metaclass=ABCMeta):
 
         self.__model.load_weights(model_weight_path)
 
-    def __ensure_model_compiled(self):
+    def __ensure_model_compiled(self) -> None:
         if self.__model is None:
             raise RuntimeError("Model should be compiled.")
 
@@ -98,14 +98,14 @@ class CheckPoint(JSONObject):
     epoch: int
     timestamp: datetime = field(default=datetime.now())
     fold: Optional[int] = field(default=None)
-    
+
     @classmethod
     def load(cls, path: str) -> "CheckPoint":
         return super().load(path, object_hook=cls.__object_hook)
-    
+
     def dump(self, path: str) -> None:
         super().dump(path, default=self.__json_default)
-    
+
     @staticmethod
     def __json_default(obj):
         return obj.isoformat() if hasattr(obj, "isoformat") else obj
@@ -197,9 +197,9 @@ class LearningHistory:
         Returns:
             List[History]: ディレクトリに含まれる学習履歴から生成したインスタンスのリスト
         """
-        import util.path
+        from deep_learning.util import dir2paths
 
-        history_paths = util.path.dir2paths(history_dir)
+        history_paths = dir2paths(history_dir)
         histories = list(
             map(lambda history_path: cls.from_path(history_path), history_paths)
         )

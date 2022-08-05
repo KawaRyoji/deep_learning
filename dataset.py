@@ -1,13 +1,12 @@
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Iterator, List, Optional, Tuple
 
 import numpy as np
 from tensorflow.keras.utils import Sequence
 
-from prototype.util import JSONObject
-from util.path import dir2paths
+from deep_learning.util import JSONObject, dir2paths
 
 
 class Dataset:
@@ -30,7 +29,7 @@ class Dataset:
             raise RuntimeError("0 < split_rate < 1")
 
         length = self.__x.shape[0]
-        split_point = length * split_rate
+        split_point = int(length * split_rate)
 
         return Dataset(self.__x[:split_point], self.__y[:split_point]), Dataset(
             self.__x[split_point:], self.__y[split_point:]
@@ -118,17 +117,17 @@ class DatasetConstructor:
         return cls(data_paths, label_paths, process)
 
     def construct(self, normalize=False, **kwargs) -> Dataset:
-        data_list = []
-        label_list = []
+        data_list: List[np.ndarray] = []
+        label_list: List[np.ndarray] = []
         for data_path, label_path in zip(self.__data_paths, self.__label_paths):
             data, label = self.process(data_path, label_path, **kwargs)
             data_list.extend(data)
             label_list.extend(label)
 
-        data_list = np.array(data_list, dtype=np.float32)
-        label_list = np.array(label_list, dtype=np.float32)
+        data_np: np.ndarray = np.array(data_list, dtype=np.float32)
+        label_np: np.ndarray = np.array(label_list, dtype=np.float32)
 
-        dataset = Dataset(data_list, label_list)
+        dataset = Dataset(data_np, label_np)
 
         if normalize:
             dataset.normalize()
@@ -207,7 +206,7 @@ class KCVDataSequence:
     def batches_per_epoch(self) -> int:
         return self.__batches_per_epoch
 
-    def generate(self) -> Tuple[int, DataSequence, DataSequence]:
+    def generate(self) -> Iterator[Tuple[int, DataSequence, DataSequence]]:
         fold_size = self.__x.shape[0] // self.k
 
         for fold in range(self.k):
@@ -240,6 +239,7 @@ class KCVDataSequence:
             )
 
             yield (fold, train_sequence, valid_sequence)
+
 
 @dataclass(frozen=True)
 class DatasetParams(JSONObject):

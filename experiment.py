@@ -1,15 +1,15 @@
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import pandas as pd
 import tensorflow as tf
 from tensorflow.keras.backend import clear_session
 from tensorflow.keras.callbacks import Callback, CSVLogger, ModelCheckpoint
 
-from prototype.dataset import Dataset, DatasetParams
-from prototype.dnn import DNN, CheckPoint, CheckPointCallBack, LearningHistory
+from deep_learning.dataset import Dataset, DatasetParams
+from deep_learning.dnn import DNN, CheckPoint, CheckPointCallBack, LearningHistory
 
 
 @dataclass(frozen=True)
@@ -164,7 +164,9 @@ class DNNExperiment:
         self.__set_hardware(gpu_i=gpu)
 
         if train_method == "holdout":
-            self.__directory = HoldoutDirectory(root_dir)
+            self.__directory: Union[HoldoutDirectory, KCVDirectory] = HoldoutDirectory(
+                root_dir
+            )
         elif train_method == "kcv":
             if k is None:
                 raise RuntimeError("k must not be None.")
@@ -239,7 +241,7 @@ class DNNExperiment:
                 check_point=check_point,
                 monitor_metric=monitor_metric,
                 monitor_mode=monitor_mode,
-                callbacks=additional_callbacks,
+                additional_callbacks=additional_callbacks,
             )
         elif self.__train_method == "kcv":
             self.__kcv_train(
@@ -247,7 +249,7 @@ class DNNExperiment:
                 check_point=check_point,
                 monitor_metric=monitor_metric,
                 monitor_mode=monitor_mode,
-                callbacks=additional_callbacks,
+                additional_callbacks=additional_callbacks,
             )
 
     def __holdout_train(
@@ -267,7 +269,7 @@ class DNNExperiment:
                 self.__directory.latest_weight_path,
             ),
             ModelCheckpoint(
-                self.__directory.best_weight_path(),
+                self.__directory.best_weight_path,
                 monitor=monitor_metric,
                 mode=monitor_mode,
             ),
@@ -321,9 +323,9 @@ class DNNExperiment:
         )
 
         if check_point is not None:
-            init_fold = 0
-        else:
             init_fold = check_point.fold
+        else:
+            init_fold = 0
 
         for fold, train_sequence, valid_sequence in sequence.generate():
             if init_fold > fold:
