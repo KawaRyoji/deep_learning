@@ -5,6 +5,7 @@ from typing import List, Optional, Union
 
 import pandas as pd
 import tensorflow as tf
+from deep_learning.plot import HistoryPlotter
 from tensorflow.keras.backend import clear_session
 from tensorflow.keras.callbacks import Callback, CSVLogger, ModelCheckpoint
 
@@ -14,6 +15,10 @@ from deep_learning.dnn import DNN, CheckPoint, CheckPointCallBack, LearningHisto
 
 @dataclass(frozen=True)
 class HoldoutDirectory:
+    """
+    ホールドアウト法で結果を保存する際の, ディレクトリパスとファイルパスを格納するクラスです.
+    """
+
     root_dir: str
     holdout_dir: str = field(init=False, compare=False)
     figures_dir: str = field(init=False, compare=False)
@@ -25,6 +30,9 @@ class HoldoutDirectory:
     test_result_path: str = field(init=False, compare=False)
 
     def __post_init__(self) -> None:
+        """
+        root_dirに従って, フィールドのパスを設定します.
+        """
         setattr(
             self,
             "holdout_dir",
@@ -70,6 +78,15 @@ class HoldoutDirectory:
         Path(self.model_weight_dir).mkdir(parents=True, exist_ok=True)
 
     def figure_path(self, file_path: str) -> str:
+        """
+        画像のパスを画像ディレクトリパスと結合して返します.
+
+        Args:
+            file_path (str): 画像のパス
+
+        Returns:
+            str: 画像のパス
+        """
         return os.path.join(self.figures_dir, file_path)
 
     def model_weight_path(self, weight_path: str) -> str:
@@ -78,6 +95,10 @@ class HoldoutDirectory:
 
 @dataclass(frozen=True)
 class KCVDirectory:
+    """
+    k分割交差検証で結果を保存する際の, ディレクトリパスとファイルパスを格納するクラスです.
+    """
+
     root_dir: str
     kcv_dir: str = field(init=False, compare=False)
     figures_dir: str = field(init=False, compare=False)
@@ -87,8 +108,12 @@ class KCVDirectory:
     model_weight_dir: str = field(init=False, compare=False)
     latest_weight_path: str = field(init=False, compare=False)
     test_result_path: str = field(init=False, compare=False)
+    test_result_figure_path: str = field(init=False, compare=False)
 
     def __post_init__(self):
+        """
+        root_dirに従って, フィールドのパスを設定します.
+        """
         setattr(
             self,
             "kcv_dir",
@@ -124,6 +149,11 @@ class KCVDirectory:
             "figure_average",
             os.path.join(self.figures_dir, "average"),
         )
+        setattr(
+            self,
+            "test_result_figure_path",
+            os.path.join(self.figures_dir, "test_result.png"),
+        )
 
         Path(self.root_dir).mkdir(parents=True, exist_ok=True)
         Path(self.kcv_dir).mkdir(parents=True, exist_ok=True)
@@ -132,6 +162,15 @@ class KCVDirectory:
         Path(self.histories_dir).mkdir(parents=True, exist_ok=True)
 
     def figure_fold_dir(self, fold: int) -> str:
+        """
+        foldにおけるディレクトリパスを画像ディレクトリパスと結合して返します.
+
+        Args:
+            fold (int): ディレクトリのfold
+
+        Returns:
+            str: 画像ディレクトリパス
+        """
         path = os.path.join(self.figures_dir, "fold%d" % fold)
 
         Path(path).mkdir(parents=True, exist_ok=True)
@@ -139,15 +178,37 @@ class KCVDirectory:
         return path
 
     def history_path(self, fold: int) -> str:
+        """
+        学習履歴のパスをを学習履歴ディレクトリパスと結合して返します.
+
+        Args:
+            fold (int): パスのfold
+
+        Returns:
+            str: 学習履歴のパス
+        """
         return os.path.join(self.histories_dir, "history_fold%d.csv" % fold)
 
     def best_weight_path(self, fold: int) -> str:
+        """
+        各foldの一番性能のよいモデルの重みを保存するパスを返します.
+
+        Args:
+            fold (int): パスのfold
+
+        Returns:
+            str: 重みのパス
+        """
         return os.path.join(
             self.model_weight_dir, "best_model_weight_fold%d.ckpt" % fold
         )
 
 
 class DNNExperiment:
+    """
+    DNNを用いた実験を行うクラスです.
+    """
+
     def __init__(
         self,
         dnn: DNN,
@@ -161,6 +222,23 @@ class DNNExperiment:
         valid_split: Optional[float] = None,
         gpu: Optional[int] = None,
     ) -> None:
+        """
+        Args:
+            dnn (DNN): DNNモデル
+            root_dir (str): 結果保存先のディレクトリパス
+            train_set (Dataset): 学習用データセット
+            test_set (Dataset): テスト用データセット
+            dataset_params (DatasetParams): データセットのパラメータ
+            model_params (dict, optional): モデルのパラメータ
+            train_method (str, optional): 学習方法("holdout" または "kcv")
+            k (Optional[int], optional): k分割交差検証のパラメータ
+            valid_split (Optional[float], optional): 検証用データの割合
+            gpu (Optional[int], optional): 使用するGPU番号
+
+        Raises:
+            RuntimeError: train_method が "kcv" かつ k を指定していない場合
+            RuntimeError: train_method が "holdout" または "kcv" でない場合
+        """
         self.__set_hardware(gpu_i=gpu)
 
         if train_method == "holdout":
@@ -197,6 +275,24 @@ class DNNExperiment:
         valid_split: Optional[float] = None,
         gpu: Optional[int] = None,
     ) -> "DNNExperiment":
+        """
+        datasetの保存先パスからインスタンスを生成します.
+
+        Args:
+            dnn (DNN): DNNモデル
+            root_dir (str): 結果保存先のディレクトリパス
+            train_set_path (str): 学習用データセットのパス
+            test_set_path (str): テスト用データセットのパス
+            dataset_params (DatasetParams):  データセットのパラメータ
+            model_params (dict, optional):  モデルのパラメータ
+            train_method (str, optional):  学習方法("holdout" または "kcv")
+            k (Optional[int], optional):  k分割交差検証のパラメータ
+            valid_split (Optional[float], optional):  検証用データの割合
+            gpu (Optional[int], optional):  使用するGPU番号
+
+        Returns:
+            DNNExperiment: 生成したインスタンス
+        """
         train_set = Dataset.load(train_set_path)
         test_set = Dataset.load(test_set_path, shuffle=False)
 
@@ -234,6 +330,16 @@ class DNNExperiment:
         monitor_mode="auto",
         additional_callbacks: Optional[List[Callback]] = None,
     ) -> None:
+        """
+        モデルを学習します.
+
+        Args:
+            *args (Any): モデルに渡す位置パラメータ
+            check_point (Optional[CheckPoint], optional): 学習を再開させるためのチェックポイントのパス
+            monitor_metric (str, optional): モデルの評価値　この評価値で性能の良い重みを決定します
+            monitor_mode (str, optional): モデルの評価値の監視モード
+            additional_callbacks (Optional[List[Callback]], optional): 追加するコールバック関数
+        """
         clear_session()  # メモリリーク対策
         if self.__train_method == "holdout":
             self.__holdout_train(
@@ -260,16 +366,27 @@ class DNNExperiment:
         monitor_mode="auto",
         additional_callbacks: Optional[List[Callback]] = None,
     ) -> None:
+        """
+        ホールドアウト法でモデルを学習させます.
+
+        Args:
+            *args (Any): モデルに渡す位置パラメータ
+            check_point (Optional[CheckPoint], optional): 学習を再開させるためのチェックポイントのパス
+            monitor_metric (str, optional): モデルの評価値　この評価値で性能の良い重みを決定します
+            monitor_mode (str, optional): モデルの評価値の監視モード
+            additional_callbacks (Optional[List[Callback]], optional): 追加するコールバック関数
+        """
         self.__dnn.compile(*args, **self.__model_params)
+        directory: HoldoutDirectory = self.__directory
 
         callbacks = [
-            CSVLogger(self.__directory.history_path),
+            CSVLogger(directory.history_path),
             CheckPointCallBack(
-                self.__directory.checkpoint_path,
-                self.__directory.latest_weight_path,
+                directory.checkpoint_path,
+                directory.latest_weight_path,
             ),
             ModelCheckpoint(
-                self.__directory.best_weight_path,
+                directory.best_weight_path,
                 monitor=monitor_metric,
                 mode=monitor_mode,
             ),
@@ -314,7 +431,18 @@ class DNNExperiment:
         monitor_mode="auto",
         additional_callbacks: Optional[List[Callback]] = None,
     ) -> None:
+        """
+        k分割交差検証でモデルを学習させます.
+
+        Args:
+            *args (Any): モデルに渡す位置パラメータ
+            check_point (Optional[CheckPoint], optional): 学習を再開させるためのチェックポイントのパス
+            monitor_metric (str, optional): モデルの評価値　この評価値で性能の良い重みを決定します
+            monitor_mode (str, optional): モデルの評価値の監視モード
+            additional_callbacks (Optional[List[Callback]], optional): 追加するコールバック関数
+        """
         self.__dnn.compile(*args, **self.__model_params)
+        directory: KCVDirectory = self.__directory
 
         sequence = self.__train_set.to_kcv_data_sequence(
             self.__dataset_params.batch_size,
@@ -333,14 +461,14 @@ class DNNExperiment:
             clear_session()  # メモリリーク対策
 
             callbacks = [
-                CSVLogger(self.__directory.history_path(fold)),
+                CSVLogger(directory.history_path(fold)),
                 CheckPointCallBack(
-                    self.__directory.checkpoint_path,
-                    self.__directory.latest_weight_path,
+                    directory.checkpoint_path,
+                    directory.latest_weight_path,
                     fold=fold,
                 ),
                 ModelCheckpoint(
-                    self.__directory.best_weight_path(fold),
+                    directory.best_weight_path(fold),
                     monitor=monitor_metric,
                     mode=monitor_mode,
                 ),
@@ -358,30 +486,41 @@ class DNNExperiment:
             )
 
     def test(self) -> None:
+        """
+        モデルでテストを行います.
+        """
         if self.__train_method == "holdout":
             self.__holdout_test()
         elif self.__train_method == "kcv":
             self.__kcv_test()
 
     def __holdout_test(self) -> None:
+        """
+        ホールドアウト法でのテストを行います.
+        """
+        directory: HoldoutDirectory = self.__directory
         test_sequence = self.__test_set.to_data_sequence(1, shuffle=False)
 
         test_result = self.__dnn.test(
             test_sequence,
-            model_weight_path=self.__directory.best_weight_path,
+            model_weight_path=directory.best_weight_path,
         )
 
         history = LearningHistory(test_result, self.__dnn.get_metrics())
-        history.save_to(self.__directory.test_result_path)
+        history.save_to(directory.test_result_path)
 
     def __kcv_test(self) -> None:
+        """
+        k分割交差検証でのテストを行います.
+        """
+        directory: KCVDirectory = self.__directory
         test_sequence = self.__test_set.to_data_sequence(1, shuffle=False)
 
         results = []
         for fold in range(self.__k):
             test_result = self.__dnn.test(
                 test_sequence,
-                model_weight_path=self.__directory.best_weight_path(fold),
+                model_weight_path=directory.best_weight_path(fold),
             )
 
             results.append(test_result)
@@ -392,4 +531,46 @@ class DNNExperiment:
             columns=["fold"] + self.__dnn.get_metrics(),
         )
 
-        df.to_csv(self.__directory.test_result_path)
+        df.to_csv(directory.test_result_path)
+
+    def plot(self):
+        """
+        学習履歴から結果をプロットします.
+        """
+        if self.__train_method == "holdout":
+            self.__plot_holdout()
+        elif self.__train_method == "kcv":
+            self.__plot_kcv()
+
+    def __plot_holdout(self):
+        """
+        ホールドアウト法でのプロットを行います.
+        """
+        directory: HoldoutDirectory = self.__directory
+        history = LearningHistory.from_path(directory.history_path)
+
+        plotter = HistoryPlotter(history)
+        plotter.plot_all_metrics(directory.figures_dir)
+
+    def __plot_kcv(self):
+        """
+        k分割交差検証でのプロットを行います.
+        """
+        directory: KCVDirectory = self.__directory
+        for fold in range(self.__k):
+            history_path = directory.history_path(fold)
+            history = LearningHistory.from_path(history_path)
+            figure_dir = directory.figure_fold_dir(fold)
+
+            plotter = HistoryPlotter(history)
+            plotter.plot_all_metrics(figure_dir)
+
+        histories = LearningHistory.from_dir(directory.histories_dir)
+        average = LearningHistory.average(*histories)
+
+        plotter = HistoryPlotter(average)
+        plotter.plot_all_metrics(directory.figure_average)
+
+        test_result = LearningHistory.from_path(directory.test_result_path)
+        plotter = HistoryPlotter(test_result)
+        plotter.box_plot(directory.test_result_figure_path)

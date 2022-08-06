@@ -17,12 +17,22 @@ from deep_learning.util import JSONObject
 
 
 class DNN(metaclass=ABCMeta):
+    """
+    DNNモデルを定義する抽象クラスです.
+    使用するにはモデルを定義するdefinition関数をオーバーロードしてください.
+    """
     def __init__(
         self,
         loss: Union[str, Loss],
         optimizer: Union[str, Optimizer] = Adam(),
         metrics: List[Union[str, Metric]] = None,
     ) -> None:
+        """
+        Args:
+            loss (Union[str, Loss]): 損失関数
+            optimizer (Union[str, Optimizer], optional): オプティマイザ
+            metrics (List[Union[str, Metric]], optional): 評価値
+        """
         self.loss = loss
         self.optimizer = optimizer
         self.metrics = metrics
@@ -30,14 +40,36 @@ class DNN(metaclass=ABCMeta):
 
     @abstractmethod
     def definition(self, *args, **kwargs) -> Model:
+        """
+        モデルを定義する関数です.
+
+        Raises:
+            NotImplementedError: オーバーロードされていないとき
+
+        Returns:
+            Model: 定義したモデル
+        """
         raise NotImplementedError()
 
     def get_metrics(self) -> List[str]:
+        """
+        モデルに設定されているmetricを返します.
+
+        Returns:
+            List[str]: モデルに設定されているmetricのリスト
+        """
         self.__ensure_model_compiled()
 
         return self.__model.metrics_names
 
     def compile(self, *args, **kwargs):
+        """
+        モデルをコンパイルします.
+
+        Args:
+            *args (Any): モデルの定義の位置パラメータ
+            *kwargs (Any): モデルの定義のキーワードパラメータ
+        """
         self.__model = self.definition(*args, **kwargs)
         self.__model.compile(
             loss=self.loss, metrics=self.metrics, optimizer=self.optimizer
@@ -51,6 +83,16 @@ class DNN(metaclass=ABCMeta):
         check_point: "CheckPoint" = None,
         callbacks: List[Callback]= None,
     ) -> None:
+        """
+        モデルを学習させます.
+
+        Args:
+            train_sequence (DataSequence): 学習データのシークエンス
+            epochs (int): エポック数
+            valid_sequence (DataSequence, optional): 検証データのシークエンス
+            check_point (CheckPoint, optional): 学習を再開するチェックポイント
+            callbacks (List[Callback], optional): コールバック関数
+        """
         self.__ensure_model_compiled()
 
         init_epoch = None
@@ -67,6 +109,16 @@ class DNN(metaclass=ABCMeta):
         )
 
     def test(self, test_sequence: DataSequence, model_weight_path: str = None) -> np.ndarray:
+        """
+        モデルでテストを行います.
+
+        Args:
+            test_sequence (DataSequence): テストデータのシークエンス
+            model_weight_path (str, optional): モデルの重みのパス
+
+        Returns:
+            np.ndarray: _description_
+        """
         self.__ensure_model_compiled()
 
         if model_weight_path is not None:
@@ -74,7 +126,17 @@ class DNN(metaclass=ABCMeta):
 
         return self.__model.evaluate(x=test_sequence, verbose=2)
 
-    def predict(self, x: np.ndarray, model_weight_path: str = None):
+    def predict(self, x: np.ndarray, model_weight_path: str = None) -> np.ndarray:
+        """
+        モデルで推論を行います.
+
+        Args:
+            x (np.ndarray): 推論を行うデータ
+            model_weight_path (str, optional): モデルの重みのパス
+
+        Returns:
+            np.ndarray: 推論結果
+        """
         self.__ensure_model_compiled()
 
         if model_weight_path is not None:
@@ -83,6 +145,12 @@ class DNN(metaclass=ABCMeta):
         return self.__model.predict(x)
 
     def load(self, model_weight_path: str) -> None:
+        """
+        モデルの重みのパスから重みを読み込みます.
+
+        Args:
+            model_weight_path (str): モデルの重みのパス
+        """
         self.__ensure_model_compiled()
 
         self.__model.load_weights(model_weight_path)
@@ -94,6 +162,9 @@ class DNN(metaclass=ABCMeta):
 
 @dataclass(frozen=True)
 class CheckPoint(JSONObject):
+    """
+    モデルの途中経過を保存するクラスです.
+    """
     weight_path: str
     epoch: int
     timestamp: datetime = field(default=datetime.now())
@@ -101,9 +172,24 @@ class CheckPoint(JSONObject):
 
     @classmethod
     def load(cls, path: str) -> "CheckPoint":
+        """
+        jsonファイルのパスからインスタンスを生成します.
+
+        Args:
+            path (str): jsonファイルのパス
+
+        Returns:
+            CheckPoint: 生成したインスタンス
+        """
         return super().load(path, object_hook=cls.__object_hook)
 
     def dump(self, path: str) -> None:
+        """
+        オブジェクトをjsonファイルに保存します.
+
+        Args:
+            path (str): 保存するjsonファイルのパス
+        """
         super().dump(path, default=self.__json_default)
 
     @staticmethod
@@ -121,6 +207,9 @@ class CheckPoint(JSONObject):
         return dic
 
 class CheckPointCallBack(ModelCheckpoint):
+    """
+    チェックポイントを学習中に生成するコールバック関数です.
+    """
     def __init__(
         self,
         checkpoint_path: str,
@@ -134,7 +223,14 @@ class CheckPointCallBack(ModelCheckpoint):
         save_freq="epoch",
         options=None,
         **kwargs
-    ):
+    ) -> None:
+        """
+        Args:
+            checkpoint_path (str): チェックポイントのパス
+            model_weight_path (str): 保存しておくモデルの重みのパス
+            fold (Optional[int], optional): fold
+            その他ModelCheckpointのパラメータ
+        """
         super().__init__(
             model_weight_path,
             monitor,

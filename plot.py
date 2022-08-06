@@ -25,6 +25,23 @@ def graph_settings(
     close: bool = False,
     show: bool = False,
 ) -> None:
+    """
+    matplotlibのグラフ設定用関数です.
+
+    Args:
+        title (Optional[str], optional): タイトル
+        xlabel (Optional[str], optional): x軸ラベル
+        ylabel (Optional[str], optional): y軸ラベル
+        xlim (Optional[Tuple[Any, Any]], optional): x軸の表示範囲
+        ylim (Optional[Tuple[Any, Any]], optional): y軸の表示範囲
+        legend (Optional[List[str]], optional): 凡例
+        fig_path (Optional[str], optional): 保存パス
+        legend_loc (str, optional): 凡例の位置
+        tick (bool, optional): 軸ラベルを表示するか
+        grid (bool, optional): グリッドを表示するか
+        close (bool, optional): 閉じるかどうか
+        show (bool, optional): 表示するかどうか
+    """
     if title is not None:
         plt.title(title, fontsize=16)
 
@@ -61,13 +78,29 @@ def graph_settings(
 
 
 class HistoryPlotter:
+    """
+    TensorflowのCSVLoggerで保存した学習履歴をプロットするクラスです.
+    """
     def __init__(self, history: LearningHistory, style="white", palette="Set1") -> None:
+        """
+        Args:
+            history (LearningHistory): 学習履歴
+            style (str, optional): seabornのスタイル
+            palette (str, optional): seabornのパレット
+        """
         self.history = history
         sns.set()
         sns.set_style(style=style)
         sns.set_palette(palette=palette)
 
     def plot(self, metric: str, path: str) -> None:
+        """
+        学習履歴からmetricのエポックによる変化を学習時と検証時を同時にプロットし, 保存します.
+
+        Args:
+            metric (str): プロットするmetric
+            path (str): 保存先のパス
+        """
         train_history = self.history.of_metric(metric)
         valid_history = self.history.of_metric("val_" + metric)
 
@@ -93,6 +126,12 @@ class HistoryPlotter:
         )
 
     def plot_all_metrics(self, dir_path: str) -> None:
+        """
+        学習履歴に含まれる全てのmetricを学習時と検証時を同時にプロットし, 保存します.
+
+        Args:
+            dir_path (str): 保存先のディレクトリパス
+        """
         metrics = list(
             filter(lambda c: (not c.startswith("val_")), self.history.metrics)
         )
@@ -101,8 +140,17 @@ class HistoryPlotter:
             self.plot(metric, os.path.join(dir_path, metric + ".png"))
 
     def box_plot(
-        self, path: str, strip_plot: bool = False, metrics: Optional[List[str]] = None
+        self, path: str, stripplot: bool = False, metrics: Optional[List[str]] = None
     ) -> None:
+        """
+        学習履歴から箱ひげ図をプロットし, 保存します.
+        この関数は主にk分割交差検証のテスト結果で使用します.
+
+        Args:
+            path (str): 保存先のパス
+            stripplot (bool, optional): ストリッププロットを重ねて表示するかどうか
+            metrics (Optional[List[str]], optional): プロットするmetricのリスト
+        """
         if metrics is None:
             metrics = list(filter(lambda c: not c == "loss", self.history.metrics))
 
@@ -112,7 +160,7 @@ class HistoryPlotter:
         fig, ax = plt.subplots()
         sns.boxplot(x="variable", y="value", data=melted, whis=[0, 100], ax=ax)
 
-        if strip_plot:
+        if stripplot:
             sns.stripplot(
                 x="variable", y="value", data=melted, jitter=True, color="black", ax=ax
             )
@@ -126,6 +174,18 @@ class HistoryPlotter:
         *histories: LearningHistory,
         legend: Optional[List[str]] = None
     ) -> None:
+        """
+        複数の学習履歴をmetricで比較してプロットし, 保存します
+
+        Args:
+            metric (str): プロットするmetric
+            path (str): 保存先のパス
+            *histories (LearningHistory): 学習履歴のリスト
+            legend (Optional[List[str]], optional): 凡例
+
+        Raises:
+            RuntimeError: 学習履歴の数と凡例の数が一致しないとき
+        """
         if legend is not None:
             if len(legend) != len(histories):
                 raise RuntimeError("historiesとlegendの次元を一致させてください")
@@ -161,6 +221,14 @@ class HistoryPlotter:
     def comparison_plot_all_metrics(
         dir_path: str, *histories: LearningHistory, legend: Optional[List[str]] = None
     ) -> None:
+        """
+        複数の学習履歴から含まれる全てのmetricで比較してプロットし, 保存します.
+
+        Args:
+            dir_path (str): 保存先のディレクトリパス
+            *histories (LearningHistory): 学習履歴のリスト
+            legend (Optional[List[str]], optional): 凡例
+        """
         metrics = histories[0].metrics
 
         for metric in metrics:
@@ -179,6 +247,19 @@ class HistoryPlotter:
         metrics: Optional[List[str]] = None,
         legend: Optional[List[str]] = None
     ) -> None:
+        """
+        複数の学習履歴から指定したmetricの箱ひげ図を比較してプロットし, 保存します.
+        この関数は主にk分割交差検証のテスト結果で使用します.
+
+        Args:
+            path (str): 保存先のパス
+            stripplot (bool, optional): ストリッププロットを重ねて表示するかどうか
+            metrics (Optional[List[str]], optional): プロットするmetricのリスト
+            legend (Optional[List[str]], optional): 凡例
+
+        Raises:
+            RuntimeError: 学習履歴の数と凡例の数が一致しないとき
+        """
         if legend is None:
             legend = ["history{}".format(i + 1) for i in range(len(histories))]
         else:
@@ -229,10 +310,24 @@ class HistoryPlotter:
 
 
 class ActivationPlotter:
+    """
+    活性化マップをプロットするクラスです.
+    """
     def __init__(self, activation: np.ndarray) -> None:
+        """
+        Args:
+            activation (np.ndarray): 活性化マップ
+        """
         self.activation = activation
 
     def plot(self, path: str, color_map: str = "magma") -> None:
+        """
+        活性化マップをプロットします.
+
+        Args:
+            path (str): 保存先のパス
+            color_map (str, optional): matplotlibのカラーマップ
+        """
         fig, ax = plt.subplots()
         fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
         plt.ioff()
@@ -245,6 +340,14 @@ class ActivationPlotter:
     def plot_with_label(
         self, label: np.ndarray, path: str, color_map: str = "magma"
     ) -> None:
+        """
+        活性化マップとラベルを重ねてプロットします.
+
+        Args:
+            label (np.ndarray): ラベル
+            path (str): 保存先のパス
+            color_map (str, optional): matplotlibのカラーマップ
+        """
         fig, ax = plt.subplots(
             dpi=100,
             figsize=(self.activation.shape[1] / 100, self.activation.shape[0] / 100),
