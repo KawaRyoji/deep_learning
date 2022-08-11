@@ -215,11 +215,12 @@ class DatasetConstructor:
 
         return cls(data_paths, label_paths, process)
 
-    def construct(self, normalize=False, **kwargs) -> Dataset:
+    def construct(self, *args, normalize=False, **kwargs) -> Dataset:
         """
         設定したデータセットを生成する関数でデータセットを生成します.
 
         Args:
+            *args (Any): 処理関数に渡すパラメータ
             normalize (bool, optional): 標準化をするかどうか
 
         Returns:
@@ -228,7 +229,7 @@ class DatasetConstructor:
         data_list: List[np.ndarray] = []
         label_list: List[np.ndarray] = []
         for data_path, label_path in zip(self.__data_paths, self.__label_paths):
-            data, label = self.process(data_path, label_path, **kwargs)
+            data, label = self.process(data_path, label_path, *args, **kwargs)
             data_list.extend(data)
             label_list.extend(label)
 

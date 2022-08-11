@@ -1,6 +1,6 @@
 import os
-from abc import ABCMeta, abstractmethod
-from dataclasses import dataclass, field
+from abc import ABCMeta, abstractclassmethod, abstractmethod
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import List, Optional, Union
 
@@ -15,14 +15,23 @@ from tensorflow.keras.optimizers import Adam, Optimizer
 from deep_learning.dataset import DataSequence
 from deep_learning.util import JSONObject
 
+@dataclass
+class ModelParams(JSONObject):
+    """
+    DNNモデルのパラメータを定義するクラスです.
+    """
+    pass
+
 
 class DNN(metaclass=ABCMeta):
     """
     DNNモデルを定義する抽象クラスです.
     使用するにはモデルを定義するdefinition関数をオーバーロードしてください.
     """
+
     def __init__(
         self,
+        param: ModelParams,
         loss: Union[str, Loss],
         optimizer: Union[str, Optimizer] = Adam(),
         metrics: List[Union[str, Metric]] = None,
@@ -34,17 +43,18 @@ class DNN(metaclass=ABCMeta):
             metrics (List[Union[str, Metric]], optional): 評価値
         """
         self.loss = loss
+        self.param = param
         self.optimizer = optimizer
         self.metrics = metrics
-        self.__model : Model = None
+        self.__model: Model = None
 
     @abstractmethod
-    def definition(self, *args, **kwargs) -> Model:
+    def definition(self, param: ModelParams) -> Model:
         """
         モデルを定義する関数です.
 
         Raises:
-            NotImplementedError: オーバーロードされていないとき
+            NotImplementedError: オーバーライドされていないとき
 
         Returns:
             Model: 定義したモデル
@@ -62,7 +72,7 @@ class DNN(metaclass=ABCMeta):
 
         return self.__model.metrics_names
 
-    def compile(self, *args, **kwargs):
+    def compile(self):
         """
         モデルをコンパイルします.
 
@@ -70,7 +80,7 @@ class DNN(metaclass=ABCMeta):
             *args (Any): モデルの定義の位置パラメータ
             *kwargs (Any): モデルの定義のキーワードパラメータ
         """
-        self.__model = self.definition(*args, **kwargs)
+        self.__model = self.definition(self.param)
         self.__model.compile(
             loss=self.loss, metrics=self.metrics, optimizer=self.optimizer
         )
@@ -81,7 +91,7 @@ class DNN(metaclass=ABCMeta):
         epochs: int,
         valid_sequence: DataSequence = None,
         check_point: "CheckPoint" = None,
-        callbacks: List[Callback]= None,
+        callbacks: List[Callback] = None,
     ) -> None:
         """
         モデルを学習させます.
@@ -105,10 +115,12 @@ class DNN(metaclass=ABCMeta):
             validation_data=valid_sequence,
             epochs=epochs,
             initial_epoch=init_epoch,
-            callbacks=callbacks
+            callbacks=callbacks,
         )
 
-    def test(self, test_sequence: DataSequence, model_weight_path: str = None) -> np.ndarray:
+    def test(
+        self, test_sequence: DataSequence, model_weight_path: str = None
+    ) -> np.ndarray:
         """
         モデルでテストを行います.
 
@@ -165,6 +177,7 @@ class CheckPoint(JSONObject):
     """
     モデルの途中経過を保存するクラスです.
     """
+
     weight_path: str
     epoch: int
     timestamp: datetime = field(default=datetime.now())
@@ -206,10 +219,12 @@ class CheckPoint(JSONObject):
                 dic[str(o)] = obj[o]
         return dic
 
+
 class CheckPointCallBack(ModelCheckpoint):
     """
     チェックポイントを学習中に生成するコールバック関数です.
     """
+
     def __init__(
         self,
         checkpoint_path: str,
