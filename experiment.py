@@ -29,14 +29,14 @@ class HoldoutDirectory:
     latest_weight_path: str = field(init=False, compare=False)
     test_result_path: str = field(init=False, compare=False)
 
-    def __init__(self) -> None:
+    def __post_init__(self) -> None:
         """
         root_dirに従って, フィールドのパスを設定します.
         """
-        self.holdout_dir = os.path.join(self.root_dir, "holdout"),
+        self.holdout_dir = os.path.join(self.root_dir, "holdout")
         
-        self.figures_dir = os.path.join(self.holdout_dir, "figures"),
-        self.history_path = os.path.join(self.holdout_dir, "history.csv"),
+        self.figures_dir = os.path.join(self.holdout_dir, "figures")
+        self.history_path = os.path.join(self.holdout_dir, "history.csv")
         self.test_result_path = os.path.join(self.holdout_dir, "test_result.csv")
         self.checkpoint_path = os.path.join(self.holdout_dir, "check_point.json")
         self.model_weight_dir = os.path.join(self.holdout_dir, "model_weights")
@@ -82,7 +82,7 @@ class KCVDirectory:
     test_result_path: str = field(init=False, compare=False)
     test_result_figure_path: str = field(init=False, compare=False)
 
-    def __init__(self):
+    def __post_init__(self):
         """
         root_dirに従って, フィールドのパスを設定します.
         """
@@ -159,8 +159,8 @@ class DNNExperiment:
         train_set: Dataset,
         test_set: Dataset,
         dataset_params: DatasetParams,
-        model_params: dict = None,
         train_method: str = "holdout",
+        model_params: Optional[dict] = None,
         k: Optional[int] = None,
         valid_split: Optional[float] = None,
         gpu: Optional[int] = None,
@@ -198,7 +198,7 @@ class DNNExperiment:
 
         self.__dnn = dnn
         self.__train_method = train_method
-        self.__model_params = model_params
+        self.__model_params = {} if model_params is None else model_params
         self.__train_set = train_set
         self.__test_set = test_set
         self.__dataset_params = dataset_params

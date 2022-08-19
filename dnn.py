@@ -1,6 +1,6 @@
 import os
-from abc import ABCMeta, abstractclassmethod, abstractmethod
-from dataclasses import asdict, dataclass, field
+from abc import ABCMeta, abstractmethod
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Optional, Union
 
@@ -15,11 +15,13 @@ from tensorflow.keras.optimizers import Adam, Optimizer
 from deep_learning.dataset import DataSequence
 from deep_learning.util import JSONObject
 
+
 @dataclass
 class ModelParams(JSONObject):
     """
     DNNモデルのパラメータを定義するクラスです.
     """
+
     pass
 
 
@@ -105,7 +107,7 @@ class DNN(metaclass=ABCMeta):
         """
         self.__ensure_model_compiled()
 
-        init_epoch = None
+        init_epoch = 0
         if check_point is not None:
             init_epoch = check_point.epoch
             self.load(check_point.weight_path)
@@ -262,11 +264,10 @@ class CheckPointCallBack(ModelCheckpoint):
         self.fold = fold
 
     def on_epoch_end(self, epoch, logs=None):
-        super().on_epoch_end(epoch, logs)
+        super().on_epoch_end(epoch, logs=logs)
 
-        file_path = self._get_file_path(epoch, logs=logs)
-        if os.path.exists(file_path):
-            cp = CheckPoint(file_path, epoch, fold=self.fold)
+        if os.path.exists(self.filepath):
+            cp = CheckPoint(self.filepath, epoch, fold=self.fold)
             cp.dump(self.checkpoint_path)
 
 
