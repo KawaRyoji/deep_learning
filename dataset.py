@@ -396,7 +396,7 @@ class KCVDataSequence:
             yield (fold, train_sequence, valid_sequence)
 
 
-@dataclass(frozen=True)
+@dataclass
 class DatasetParams(JSONObject):
     """
     データセットに用いるパラメータのクラスです.

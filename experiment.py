@@ -13,7 +13,7 @@ from deep_learning.dataset import Dataset, DatasetParams
 from deep_learning.dnn import DNN, CheckPoint, CheckPointCallBack, LearningHistory
 
 
-@dataclass(frozen=True)
+@dataclass
 class HoldoutDirectory:
     """
     ホールドアウト法で結果を保存する際の, ディレクトリパスとファイルパスを格納するクラスです.
@@ -29,48 +29,20 @@ class HoldoutDirectory:
     latest_weight_path: str = field(init=False, compare=False)
     test_result_path: str = field(init=False, compare=False)
 
-    def __post_init__(self) -> None:
+    def __init__(self) -> None:
         """
         root_dirに従って, フィールドのパスを設定します.
         """
-        setattr(
-            self,
-            "holdout_dir",
-            os.path.join(self.root_dir, "holdout"),
-        )
-        setattr(
-            self,
-            "figures_dir",
-            os.path.join(self.holdout_dir, "figures"),
-        )
-        setattr(
-            self,
-            "history_path",
-            os.path.join(self.holdout_dir, "history.csv"),
-        )
-        setattr(
-            self, "test_result_path", os.path.join(self.holdout_dir, "test_result.csv")
-        )
-        setattr(
-            self,
-            "checkpoint_path",
-            os.path.join(self.holdout_dir, "check_point.json"),
-        )
-        setattr(
-            self,
-            "model_weight_dir",
-            os.path.join(self.holdout_dir, "model_weights"),
-        )
-        setattr(
-            self,
-            "best_weight_path",
-            os.path.join(self.model_weight_dir, "best_model.ckpt"),
-        )
-        setattr(
-            self,
-            "latest_weight_path",
-            os.path.join(self.model_weight_dir, "latest_model.ckpt"),
-        )
+        self.holdout_dir = os.path.join(self.root_dir, "holdout"),
+        
+        self.figures_dir = os.path.join(self.holdout_dir, "figures"),
+        self.history_path = os.path.join(self.holdout_dir, "history.csv"),
+        self.test_result_path = os.path.join(self.holdout_dir, "test_result.csv")
+        self.checkpoint_path = os.path.join(self.holdout_dir, "check_point.json")
+        self.model_weight_dir = os.path.join(self.holdout_dir, "model_weights")
+        
+        self.best_weight_path = os.path.join(self.model_weight_dir, "best_model.ckpt")
+        self.latest_weight_path = os.path.join(self.model_weight_dir, "latest_model.ckpt")
 
         Path(self.root_dir).mkdir(parents=True, exist_ok=True)
         Path(self.holdout_dir).mkdir(parents=True, exist_ok=True)
@@ -93,7 +65,7 @@ class HoldoutDirectory:
         return os.path.join(self.model_weight_dir, weight_path)
 
 
-@dataclass(frozen=True)
+@dataclass
 class KCVDirectory:
     """
     k分割交差検証で結果を保存する際の, ディレクトリパスとファイルパスを格納するクラスです.
@@ -110,50 +82,21 @@ class KCVDirectory:
     test_result_path: str = field(init=False, compare=False)
     test_result_figure_path: str = field(init=False, compare=False)
 
-    def __post_init__(self):
+    def __init__(self):
         """
         root_dirに従って, フィールドのパスを設定します.
         """
-        setattr(
-            self,
-            "kcv_dir",
-            os.path.join(self.root_dir, "kcv"),
-        )
-        setattr(
-            self,
-            "figures_dir",
-            os.path.join(self.kcv_dir, "figures"),
-        )
-        setattr(
-            self,
-            "model_weight_dir",
-            os.path.join(self.kcv_dir, "model_weights"),
-        )
-        setattr(
-            self,
-            "histories_dir",
-            os.path.join(self.kcv_dir, "histories"),
-        )
-        setattr(
-            self,
-            "test_result_path",
-            os.path.join(self.kcv_dir, "test_result.csv"),
-        )
-        setattr(
-            self,
-            "latest_weight_path",
-            os.path.join(self.model_weight_dir, "latest_model.ckpt"),
-        )
-        setattr(
-            self,
-            "figure_average",
-            os.path.join(self.figures_dir, "average"),
-        )
-        setattr(
-            self,
-            "test_result_figure_path",
-            os.path.join(self.figures_dir, "test_result.png"),
-        )
+        self.kcv_dir = os.path.join(self.root_dir, "kcv")
+        
+        self.figures_dir = os.path.join(self.kcv_dir, "figures")
+        self.model_weight_dir = os.path.join(self.kcv_dir, "model_weights")
+        self.histories_dir = os.path.join(self.kcv_dir, "histories")
+        self.test_result_path = os.path.join(self.kcv_dir, "test_result.csv")
+        
+        self.latest_weight_path = os.path.join(self.model_weight_dir, "latest_model.ckpt")
+        
+        self.figure_average = os.path.join(self.figures_dir, "average")
+        self.test_result_figure_path = os.path.join(self.figures_dir, "test_result.png")
 
         Path(self.root_dir).mkdir(parents=True, exist_ok=True)
         Path(self.kcv_dir).mkdir(parents=True, exist_ok=True)

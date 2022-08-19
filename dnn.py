@@ -172,7 +172,7 @@ class DNN(metaclass=ABCMeta):
             raise RuntimeError("Model should be compiled.")
 
 
-@dataclass(frozen=True)
+@dataclass
 class CheckPoint(JSONObject):
     """
     モデルの途中経過を保存するクラスです.
