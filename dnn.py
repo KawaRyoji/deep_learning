@@ -1,8 +1,8 @@
 import os
 from abc import ABCMeta, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -22,7 +22,8 @@ class ModelParams(JSONObject):
     DNNモデルのパラメータを定義するクラスです.
     """
 
-    pass
+    def to_dict(self) -> dict:
+        return asdict(self)
 
 
 class DNN(metaclass=ABCMeta):
@@ -77,10 +78,6 @@ class DNN(metaclass=ABCMeta):
     def compile(self):
         """
         モデルをコンパイルします.
-
-        Args:
-            *args (Any): モデルの定義の位置パラメータ
-            *kwargs (Any): モデルの定義のキーワードパラメータ
         """
         self.__model = self.definition(self.param)
         self.__model.compile(
@@ -92,7 +89,7 @@ class DNN(metaclass=ABCMeta):
         train_sequence: DataSequence,
         epochs: int,
         valid_sequence: DataSequence = None,
-        check_point: "CheckPoint" = None,
+        checkpoint: "CheckPoint" = None,
         callbacks: List[Callback] = None,
     ) -> None:
         """
@@ -108,9 +105,9 @@ class DNN(metaclass=ABCMeta):
         self.__ensure_model_compiled()
 
         init_epoch = 0
-        if check_point is not None:
-            init_epoch = check_point.epoch
-            self.load(check_point.weight_path)
+        if checkpoint is not None:
+            init_epoch = checkpoint.epoch + 1  # checkpoint.epochの次から開始させるため+1
+            self.load(checkpoint.weight_path)
 
         self.__model.fit(
             x=train_sequence,
@@ -186,7 +183,7 @@ class CheckPoint(JSONObject):
     fold: Optional[int] = field(default=None)
 
     @classmethod
-    def load(cls, path: str) -> "CheckPoint":
+    def load(cls, path: str) -> Union["CheckPoint", None]:
         """
         jsonファイルのパスからインスタンスを生成します.
 
@@ -194,8 +191,10 @@ class CheckPoint(JSONObject):
             path (str): jsonファイルのパス
 
         Returns:
-            CheckPoint: 生成したインスタンス
+            CheckPoint | None: 生成したインスタンス、パスが存在しなければNone
         """
+        if not os.path.exists(path):
+            return None
         return super().load(path, object_hook=cls.__object_hook)
 
     def dump(self, path: str) -> None:
@@ -318,6 +317,21 @@ class LearningHistory:
 
         return histories
 
+    @classmethod
+    def from_list(
+        cls, history_list: List[Any], metrics: List[str]
+    ) -> "LearningHistory":
+        history = pd.DataFrame(history_list, columns=metrics)
+
+        return cls(history, metrics)
+
+    @classmethod
+    def concat(cls, histories: List["LearningHistory"]) -> "LearningHistory":
+        df_histories = list(map(lambda history: history.df_history, histories))
+        df_history = pd.concat(df_histories)
+        
+        return cls(df_history, df_history.columns.to_list())
+    
     @classmethod
     def average(cls, *learning_histories: "LearningHistory") -> "LearningHistory":
         """

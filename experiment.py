@@ -34,15 +34,17 @@ class HoldoutDirectory:
         root_dirに従って, フィールドのパスを設定します.
         """
         self.holdout_dir = os.path.join(self.root_dir, "holdout")
-        
+
         self.figures_dir = os.path.join(self.holdout_dir, "figures")
         self.history_path = os.path.join(self.holdout_dir, "history.csv")
         self.test_result_path = os.path.join(self.holdout_dir, "test_result.csv")
         self.checkpoint_path = os.path.join(self.holdout_dir, "check_point.json")
         self.model_weight_dir = os.path.join(self.holdout_dir, "model_weights")
-        
+
         self.best_weight_path = os.path.join(self.model_weight_dir, "best_model.ckpt")
-        self.latest_weight_path = os.path.join(self.model_weight_dir, "latest_model.ckpt")
+        self.latest_weight_path = os.path.join(
+            self.model_weight_dir, "latest_model.ckpt"
+        )
 
         Path(self.root_dir).mkdir(parents=True, exist_ok=True)
         Path(self.holdout_dir).mkdir(parents=True, exist_ok=True)
@@ -87,14 +89,17 @@ class KCVDirectory:
         root_dirに従って, フィールドのパスを設定します.
         """
         self.kcv_dir = os.path.join(self.root_dir, "kcv")
-        
+
         self.figures_dir = os.path.join(self.kcv_dir, "figures")
         self.model_weight_dir = os.path.join(self.kcv_dir, "model_weights")
         self.histories_dir = os.path.join(self.kcv_dir, "histories")
         self.test_result_path = os.path.join(self.kcv_dir, "test_result.csv")
-        
-        self.latest_weight_path = os.path.join(self.model_weight_dir, "latest_model.ckpt")
-        
+        self.checkpoint_path = os.path.join(self.kcv_dir, "check_point.json")
+
+        self.latest_weight_path = os.path.join(
+            self.model_weight_dir, "latest_model.ckpt"
+        )
+
         self.figure_average = os.path.join(self.figures_dir, "average")
         self.test_result_figure_path = os.path.join(self.figures_dir, "test_result.png")
 
@@ -160,7 +165,6 @@ class DNNExperiment:
         test_set: Dataset,
         dataset_params: DatasetParams,
         train_method: str = "holdout",
-        model_params: Optional[dict] = None,
         k: Optional[int] = None,
         valid_split: Optional[float] = None,
         gpu: Optional[int] = None,
@@ -198,7 +202,6 @@ class DNNExperiment:
 
         self.__dnn = dnn
         self.__train_method = train_method
-        self.__model_params = {} if model_params is None else model_params
         self.__train_set = train_set
         self.__test_set = test_set
         self.__dataset_params = dataset_params
@@ -267,8 +270,7 @@ class DNNExperiment:
 
     def train(
         self,
-        *args,
-        check_point: Optional[CheckPoint] = None,
+        use_checkpoint: bool = True,
         monitor_metric="val_loss",
         monitor_mode="auto",
         additional_callbacks: Optional[List[Callback]] = None,
@@ -277,8 +279,7 @@ class DNNExperiment:
         モデルを学習します.
 
         Args:
-            *args (Any): モデルに渡す位置パラメータ
-            check_point (Optional[CheckPoint], optional): 学習を再開させるためのチェックポイントのパス
+            use_checkpoint (bool, optional): チェックポイントから学習を再開させるかどうか
             monitor_metric (str, optional): モデルの評価値　この評価値で性能の良い重みを決定します
             monitor_mode (str, optional): モデルの評価値の監視モード
             additional_callbacks (Optional[List[Callback]], optional): 追加するコールバック関数
@@ -286,16 +287,14 @@ class DNNExperiment:
         clear_session()  # メモリリーク対策
         if self.__train_method == "holdout":
             self.__holdout_train(
-                *args,
-                check_point=check_point,
+                use_checkpoint=use_checkpoint,
                 monitor_metric=monitor_metric,
                 monitor_mode=monitor_mode,
                 additional_callbacks=additional_callbacks,
             )
         elif self.__train_method == "kcv":
             self.__kcv_train(
-                *args,
-                check_point=check_point,
+                use_checkpoint=use_checkpoint,
                 monitor_metric=monitor_metric,
                 monitor_mode=monitor_mode,
                 additional_callbacks=additional_callbacks,
@@ -303,8 +302,7 @@ class DNNExperiment:
 
     def __holdout_train(
         self,
-        *args,
-        check_point: Optional[CheckPoint] = None,
+        use_checkpoint: bool = True,
         monitor_metric="val_loss",
         monitor_mode="auto",
         additional_callbacks: Optional[List[Callback]] = None,
@@ -313,13 +311,12 @@ class DNNExperiment:
         ホールドアウト法でモデルを学習させます.
 
         Args:
-            *args (Any): モデルに渡す位置パラメータ
-            check_point (Optional[CheckPoint], optional): 学習を再開させるためのチェックポイントのパス
+            from_checkpoint (bool, optional): チェックポイントから学習を再開させるかどうか
             monitor_metric (str, optional): モデルの評価値　この評価値で性能の良い重みを決定します
             monitor_mode (str, optional): モデルの評価値の監視モード
             additional_callbacks (Optional[List[Callback]], optional): 追加するコールバック関数
         """
-        self.__dnn.compile(*args, **self.__model_params)
+        self.__dnn.compile()
         directory: HoldoutDirectory = self.__directory
 
         callbacks = [
@@ -358,18 +355,23 @@ class DNNExperiment:
                 batches_per_epoch=self.__dataset_params.batches_per_epoch,
             )
 
+        checkpoint = self.__load_ho_checkpoint(
+            use_checkpoint, self.__dataset_params.epochs
+        )
+
         self.__dnn.train(
             train_sequence=train_sequence,
             valid_sequence=valid_sequence,
             epochs=self.__dataset_params.epochs,
-            check_point=check_point,
+            checkpoint=checkpoint,
             callbacks=callbacks,
         )
 
+        self.__used_checkpoint(directory.history_path)
+
     def __kcv_train(
         self,
-        *args,
-        check_point: Optional[CheckPoint] = None,
+        use_checkpoint: bool = True,
         monitor_metric="val_loss",
         monitor_mode="auto",
         additional_callbacks: Optional[List[Callback]] = None,
@@ -378,13 +380,11 @@ class DNNExperiment:
         k分割交差検証でモデルを学習させます.
 
         Args:
-            *args (Any): モデルに渡す位置パラメータ
-            check_point (Optional[CheckPoint], optional): 学習を再開させるためのチェックポイントのパス
+            use_checkpoint (bool, optional): 学習を再開させるためのチェックポイントのパス
             monitor_metric (str, optional): モデルの評価値　この評価値で性能の良い重みを決定します
             monitor_mode (str, optional): モデルの評価値の監視モード
             additional_callbacks (Optional[List[Callback]], optional): 追加するコールバック関数
         """
-        self.__dnn.compile(*args, **self.__model_params)
         directory: KCVDirectory = self.__directory
 
         sequence = self.__train_set.to_kcv_data_sequence(
@@ -393,15 +393,21 @@ class DNNExperiment:
             batches_per_epoch=self.__dataset_params.batches_per_epoch,
         )
 
-        if check_point is not None:
-            init_fold = check_point.fold
-        else:
+        checkpoint = self.__load_kcv_checkpoint(
+            use_checkpoint, self.__dataset_params.epochs
+        )
+
+        if checkpoint is None:
             init_fold = 0
+        else:
+            init_fold = checkpoint.fold
 
         for fold, train_sequence, valid_sequence in sequence.generate():
-            if init_fold > fold:
+            if init_fold > fold:  # チェックポイントに記述されたfoldまで飛ばす
                 continue
+
             clear_session()  # メモリリーク対策
+            self.__dnn.compile()
 
             callbacks = [
                 CSVLogger(directory.history_path(fold)),
@@ -424,14 +430,75 @@ class DNNExperiment:
                 train_sequence=train_sequence,
                 valid_sequence=valid_sequence,
                 epochs=self.__dataset_params.epochs,
-                check_point=check_point,
+                checkpoint=checkpoint,
                 callbacks=callbacks,
             )
+
+            # チェックポイントから始めた場合に元の学習履歴が消去されてしまう問題を解決する
+            self.__used_checkpoint(self.__directory.history_path(fold))
+            checkpoint = None  # 一度チェックポイントを使ったら使わない
+
+    def __load_ho_checkpoint(
+        self, use_checkpoint: bool, epochs: int
+    ) -> Union[CheckPoint, None]:
+        if not use_checkpoint:
+            return None
+
+        checkpoint = CheckPoint.load(self.__directory.checkpoint_path)
+        if checkpoint is None:
+            return None
+
+        if checkpoint.epoch == epochs - 1:  # チェックポイントが最終エポックの場合
+            return checkpoint
+
+        tmp_history = LearningHistory.from_path(self.__directory.history_path)
+        tmp_history.save_to(os.path.join(self.__directory.histories_dir, "tmp.csv"))
+
+        return checkpoint
+
+    def __used_checkpoint(self, new_history_path: str) -> None:
+        if os.path.exists(os.path.join(self.__directory.histories_dir, "tmp.csv")):
+            old_history = LearningHistory.from_path(
+                os.path.join(self.__directory.histories_dir, "tmp.csv")
+            )
+            new_history = LearningHistory.from_path(new_history_path)
+            history = LearningHistory.concat([old_history, new_history])
+            history.save_to(new_history_path)
+            os.remove(os.path.join(self.__directory.histories_dir, "tmp.csv"))
+
+    def __load_kcv_checkpoint(
+        self, use_checkpoint: bool, epochs: int
+    ) -> Union[CheckPoint, None]:
+        if not use_checkpoint:
+            return None
+
+        checkpoint = CheckPoint.load(self.__directory.checkpoint_path)
+        if checkpoint is None:
+            return None
+
+        if checkpoint.fold is None:
+            raise RuntimeError("fold of checkpoint must not be None.")
+
+        if checkpoint.epoch == epochs - 1:  # チェックポイントが最終エポックの場合
+            return checkpoint
+
+        tmp_history = LearningHistory.from_path(
+            self.__directory.history_path(checkpoint.fold)
+        )
+        tmp_history.save_to(os.path.join(self.__directory.histories_dir, "tmp.csv"))
+
+        return checkpoint
 
     def test(self) -> None:
         """
         モデルでテストを行います.
+        すでにテスト結果がある場合はスキップされます.
         """
+        if os.path.exists(self.__directory.test_result_path):
+            return
+
+        self.__dnn.compile()
+
         if self.__train_method == "holdout":
             self.__holdout_test()
         elif self.__train_method == "kcv":
@@ -449,7 +516,7 @@ class DNNExperiment:
             model_weight_path=directory.best_weight_path,
         )
 
-        history = LearningHistory(test_result, self.__dnn.get_metrics())
+        history = LearningHistory.from_list([test_result], self.__metrics_without_val())
         history.save_to(directory.test_result_path)
 
     def __kcv_test(self) -> None:
@@ -471,10 +538,18 @@ class DNNExperiment:
         df = pd.DataFrame(
             results,
             index=[i for i in range(self.__k)],
-            columns=["fold"] + self.__dnn.get_metrics(),
+            columns=self.__metrics_without_val(),
         )
 
         df.to_csv(directory.test_result_path)
+
+    def __metrics_without_val(self) -> List[str]:
+        return list(
+            filter(
+                lambda name: not name.startswith("val_") and not name == "epoch",
+                self.__dnn.get_metrics(),
+            )
+        )
 
     def plot(self):
         """
