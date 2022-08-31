@@ -12,14 +12,19 @@ Tensorflow で記述されており, バージョンは 2.6 を想定して書�
 
 ```python
 class SomeModel(DNN):
-    def definition(self, *args, **kwargs) -> Model:
-        # ここにkerasのModelを返すモデルの定義を書きます
+    @dataclass
+    class Params(ModelParams): # モデルで使用するパラメータを定義
+        stride: int = field(default=4)
+
+    def definition(self, params: Params) -> Model:
+        # 上で定義したモデルのパラメータからkerasのモデルを作成します
         return some_model
 
 model = SomeModel(
-    loss = "binary_crossentropy",   # 損失関数の設定
-    optimizer = "Adam",             # オプティマイザの設定
-    metrics = ["precision"]         # 評価値の設定
+    SomeModel.Params(),                     # モデルのパラメータ設定
+    loss = "binary_crossentropy",           # 損失関数の設定
+    optimizer = Adam(learning_rate=0.0001), # オプティマイザの設定
+    metrics = ["precision"]                 # 評価値の設定
 )
 
 train_set = Dataset(train_data, train_label) # ファイルパスからデータセットを構築する方法もあります
