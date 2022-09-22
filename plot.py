@@ -81,17 +81,13 @@ class HistoryPlotter:
     """
     TensorflowのCSVLoggerで保存した学習履歴をプロットするクラスです.
     """
-    def __init__(self, history: LearningHistory, style="white", palette="Set1") -> None:
+    def __init__(self, history: LearningHistory) -> None:
         """
         Args:
             history (LearningHistory): 学習履歴
-            style (str, optional): seabornのスタイル
-            palette (str, optional): seabornのパレット
         """
         self.history = history
-        sns.set()
-        sns.set_style(style=style)
-        sns.set_palette(palette=palette)
+
 
     def plot(self, metric: str, path: str) -> None:
         """
@@ -167,6 +163,18 @@ class HistoryPlotter:
 
         graph_settings(xlabel="metrics", ylabel="score", fig_path=path, close=True)
 
+    @staticmethod
+    def set_style(style="white", palette="Set1"):
+        """
+        seabornのスタイル設定を行います
+        Args:
+            style (str, optional): seabornのスタイル
+            palette (str, optional): seabornのパレット
+        """
+        sns.set()
+        sns.set_style(style=style)
+        sns.set_palette(palette=palette)
+    
     @staticmethod
     def comparison_plot(
         metric: str,

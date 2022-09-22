@@ -555,6 +555,8 @@ class DNNExperiment:
         """
         学習履歴から結果をプロットします.
         """
+        HistoryPlotter.set_style()
+        
         if self.__train_method == "holdout":
             self.__plot_holdout()
         elif self.__train_method == "kcv":
