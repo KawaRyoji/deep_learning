@@ -65,8 +65,8 @@ class Dataset:
         """
         データセットのデータを標準化します.
         """
-        self.__x -= np.mean(self.__x, axis=1)[:, np.newaxis]
-        std = np.std(self.__x, axis=1)[:, np.newaxis]
+        self.__x -= np.mean(self.__x, axis=-1, keepdims=True)
+        std = np.std(self.__x, axis=-1, keepdims=True)
         self.__x = np.divide(self.__x, std, out=np.zeros_like(self.__x), where=std != 0)
 
     def to_data_sequence(
