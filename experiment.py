@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import List, Optional, Union
 
 import pandas as pd
+import numpy as np
 import tensorflow as tf
 from deep_learning.plot import HistoryPlotter
 from tensorflow.keras.backend import clear_session
@@ -551,12 +552,45 @@ class DNNExperiment:
             )
         )
 
+    def predict(self, x: np.ndarray, fold: Optional[int] = None) -> np.ndarray:
+        """
+        一番良い重みで推論を行います.
+        学習方法が"kcv"の場合foldを指定できます.
+
+        Args:
+            x (np.ndarray): 推論に使うデータ
+            fold (Optional[int], optional): 学習方法が"kcv"のときに使う重みを選択します
+
+        Raises:
+            RuntimeError: 学習方法が"kcv"または"holdout"以外だった場合
+
+        Returns:
+            np.ndarray: 推論の結果
+        """
+        
+        self.__dnn.compile()
+
+        if self.__train_method == "kcv":
+            if fold is None:
+                fold = 0
+            prediction = self.__dnn.predict(
+                x, model_weight_path=self.__directory.best_weight_path(fold)
+            )
+        elif self.__train_method == "holdout":
+            prediction = self.__dnn.predict(
+                x, model_weight_path=self.__directory.best_weight_path
+            )
+        else:
+            raise RuntimeError("train method must be 'kcv' or 'holdout'")
+
+        return prediction
+
     def plot(self):
         """
         学習履歴から結果をプロットします.
         """
         HistoryPlotter.set_style()
-        
+
         if self.__train_method == "holdout":
             self.__plot_holdout()
         elif self.__train_method == "kcv":
