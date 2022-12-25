@@ -1,10 +1,10 @@
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Iterator, List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 import numpy as np
-from tensorflow.keras.utils import Sequence
+import tensorflow as tf
 
 from deep_learning.util import JSONObject, dir2paths
 
@@ -23,7 +23,35 @@ class Dataset:
         self.__x = x
         self.__y = y
 
-    def save(self, path: str):
+    @property
+    def x(self) -> np.ndarray:
+        return self.__x
+
+    @property
+    def y(self) -> np.ndarray:
+        return self.__y
+
+    def cv_mask(self, start: int, end: int) -> Tuple["Dataset", "Dataset"]:
+        """
+        交差検証の学習用と検証用を分けてデータセットとする処理
+
+        Returns:
+            (Dataset, Dataset): 学習用データセット, 検証用データセット
+        """
+        mask = np.ones(len(self.__x), dtype=bool)
+        mask[start:end] = False
+
+        x_train = self.__x[mask]
+        y_train = self.__y[mask]
+        x_valid = self.__x[~mask]
+        y_valid = self.__y[~mask]
+
+        train_set = Dataset(x_train, y_train)
+        valid_set = Dataset(x_valid, y_valid)
+
+        return train_set, valid_set
+
+    def save(self, path: str) -> None:
         """
         データセットをnpzファイルに保存します.
 
@@ -70,14 +98,14 @@ class Dataset:
         self.__x = np.divide(self.__x, std, out=np.zeros_like(self.__x), where=std != 0)
 
     def to_data_sequence(
-        self, batch_size: int, batches_per_epoch: int = None, shuffle: bool = True
+        self, batch_size: int, steps_per_epoch: int = None, shuffle: bool = True
     ) -> "DataSequence":
         """
         データセットからデータシークエンスを生成します.
 
         Args:
             batch_size (int): バッチサイズ
-            batches_per_epoch (int, optional): エポック当たりのバッチ数
+            steps_per_epoch (int, optional): エポック当たりのバッチ数
             shuffle (bool, optional): シャッフルするかどうか
 
         Returns:
@@ -87,31 +115,11 @@ class Dataset:
             self.__x,
             self.__y,
             batch_size,
-            batches_per_epoch=batches_per_epoch,
+            steps_per_epoch=steps_per_epoch,
             shuffle=shuffle,
         )
 
         return data_sequence
-
-    def to_kcv_data_sequence(
-        self, batch_size: int, k: int, batches_per_epoch: int = None
-    ) -> "KCVDataSequence":
-        """
-        データセットからk分割交差検証用データシークエンスを生成します.
-
-        Args:
-            batch_size (int): バッチサイズ
-            k (int): 分割数
-            batches_per_epoch (int, optional): エポック当たりのバッチ数
-
-        Returns:
-            KCVDataSequence: 生成したデータシークエンス
-        """
-        kcv_data_sequence = KCVDataSequence(
-            self.__x, self.__y, k, batch_size, batches_per_epoch=batches_per_epoch
-        )
-
-        return kcv_data_sequence
 
     @classmethod
     def load(cls, path: str, shuffle=True) -> "Dataset":
@@ -244,7 +252,7 @@ class DatasetConstructor:
         return dataset
 
 
-class DataSequence(Sequence):
+class DataSequence(tf.keras.utils.Sequence):
     """
     model.fit()に渡すデータシークエンスのクラスです.
     このクラスでバッチサイズやエポックあたりのバッチ数を調整できます.
@@ -255,7 +263,7 @@ class DataSequence(Sequence):
         x: np.ndarray,
         y: np.ndarray,
         batch_size: int,
-        batches_per_epoch: int = None,
+        steps_per_epoch: Optional[int] = None,
         shuffle: bool = True,
     ) -> None:
         """
@@ -263,83 +271,17 @@ class DataSequence(Sequence):
             x (np.ndarray): データ
             y (np.ndarray): ラベル
             batch_size (int): バッチサイズ
-            batches_per_epoch (int, optional): エポック当たりのバッチ数
+            steps_per_epoch (Optional[int], optional): エポック当たりのバッチ数
             shuffle (bool, optional): エポックごとにシャッフルするかどうか
         """
         self.__x = x
         self.__y = y
         self.__batch_size = batch_size
-        if batches_per_epoch is None:
-            self.__batches_per_epoch: int = x.shape[0] // batch_size
+        if steps_per_epoch is None:
+            self.__steps_per_epoch: int = x.shape[0] // batch_size
         else:
-            self.__batches_per_epoch = batches_per_epoch
+            self.__steps_per_epoch = steps_per_epoch
         self.__shuffle = shuffle
-
-    @property
-    def batch_size(self):
-        """
-        バッチサイズ
-        """
-        return self.__batch_size
-
-    @property
-    def batches_per_epoch(self):
-        """
-        エポックあたりのバッチ数
-        """
-        return self.__batches_per_epoch
-
-    def __len__(self):
-        return self.batches_per_epoch
-
-    def __getitem__(self, index):
-        start = index * self.batch_size
-        end = (index + 1) * self.batch_size
-
-        return self.__x[start:end], self.__y[start:end]
-
-    def on_epoch_end(self):
-        if self.__shuffle:
-            Dataset.shuffle(self.__x, self.__y)
-
-
-class KCVDataSequence:
-    """
-    k分割交差検証で用いるデータシークエンスを生成するクラスです.
-    """
-
-    def __init__(
-        self,
-        x: np.ndarray,
-        y: np.ndarray,
-        k: int,
-        batch_size: int,
-        batches_per_epoch: int = None,
-    ) -> None:
-        """
-        Args:
-            x (np.ndarray): データ
-            y (np.ndarray): ラベル
-            k (int): 分割数
-            batch_size (int): バッチサイズ
-            batches_per_epoch (int, optional): エポック当たりのバッチ数
-        """
-        self.__x = x
-        self.__y = y
-        self.__k = k
-        self.__batch_size = batch_size
-
-        if batches_per_epoch is None:
-            self.__batches_per_epoch: int = x.shape[0] // self.__batch_size
-        else:
-            self.__batches_per_epoch = batches_per_epoch
-
-    @property
-    def k(self) -> int:
-        """
-        分割数
-        """
-        return self.__k
 
     @property
     def batch_size(self) -> int:
@@ -349,51 +291,24 @@ class KCVDataSequence:
         return self.__batch_size
 
     @property
-    def batches_per_epoch(self) -> int:
+    def steps_per_epoch(self) -> int:
         """
-        エポック当たりのバッチ数
+        エポックあたりのバッチ数
         """
-        return self.__batches_per_epoch
+        return self.__steps_per_epoch
 
-    def generate(self) -> Iterator[Tuple[int, DataSequence, DataSequence]]:
-        """
-        各foldに使う学習シークエンスを生成する関数です.
+    def __len__(self) -> int:
+        return self.steps_per_epoch
 
-        Yields:
-            Iterator[Tuple[int, DataSequence, DataSequence]]: fold数, 学習シークエンス, 検証シークエンス
-        """
-        fold_size = self.__x.shape[0] // self.k
+    def __getitem__(self, index) -> Tuple[np.ndarray, np.ndarray]:
+        start = index * self.batch_size
+        end = (index + 1) * self.batch_size
 
-        for fold in range(self.k):
-            start = fold * fold_size
-            end = start + fold_size
+        return self.__x[start:end], self.__y[start:end]
 
-            mask = np.ones(self.__x.shape[0], dtype=bool)
-            mask[start:end] = False
-
-            x_valid = self.__x[start:end]
-            y_valid = self.__y[start:end]
-
-            x_train = self.__x[mask]
-            y_train = self.__y[mask]
-
-            del mask
-            train_sequence = DataSequence(
-                x_train,
-                y_train,
-                self.batch_size,
-                batches_per_epoch=int(self.batches_per_epoch * (self.k - 1) / self.k),
-            )
-
-            valid_sequence = DataSequence(
-                x_valid,
-                y_valid,
-                self.batch_size,
-                batches_per_epoch=int(self.batches_per_epoch / self.k),
-                shuffle=False,
-            )
-
-            yield (fold, train_sequence, valid_sequence)
+    def on_epoch_end(self) -> None:
+        if self.__shuffle:
+            Dataset.shuffle(self.__x, self.__y)
 
 
 @dataclass
@@ -404,4 +319,4 @@ class DatasetParams(JSONObject):
 
     batch_size: int
     epochs: int
-    batches_per_epoch: Optional[int] = field(default=None)
+    steps_per_epoch: Optional[int] = field(default=None)

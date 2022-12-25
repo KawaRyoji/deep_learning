@@ -1,10 +1,13 @@
+import gc
 import os
 from abc import ABCMeta, abstractmethod
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import Any, List, Optional, Union
+import tracemalloc
+from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
+import tensorflow as tf
 import pandas as pd
 from tensorflow.keras import Model
 from tensorflow.keras.callbacks import Callback, ModelCheckpoint
@@ -49,7 +52,7 @@ class DNN(metaclass=ABCMeta):
         self.param = param
         self.optimizer = optimizer
         self.metrics = metrics
-        self.__model: Model = None
+        self.__model: tf.keras.Model = None
 
     @abstractmethod
     def definition(self, param: ModelParams) -> Model:
@@ -75,10 +78,13 @@ class DNN(metaclass=ABCMeta):
 
         return self.__model.metrics_names
 
-    def compile(self):
+    def compile(self) -> None:
         """
         モデルをコンパイルします.
         """
+        if self.__model is not None:
+            del self.__model
+
         self.__model = self.definition(self.param)
         self.__model.compile(
             loss=self.loss, metrics=self.metrics, optimizer=self.optimizer
@@ -86,19 +92,23 @@ class DNN(metaclass=ABCMeta):
 
     def train(
         self,
-        train_sequence: DataSequence,
+        train_dataset: tf.data.Dataset,
         epochs: int,
-        valid_sequence: DataSequence = None,
-        checkpoint: "CheckPoint" = None,
+        valid_dataset: Optional[
+            Union[tf.data.Dataset, Tuple[np.ndarray, np.ndarray]]
+        ] = None,
+        steps_per_epoch: Optional[int] = None,
+        validation_steps: Optional[int] = None,
+        checkpoint: Optional["CheckPoint"] = None,
         callbacks: List[Callback] = None,
     ) -> None:
         """
         モデルを学習させます.
 
         Args:
-            train_sequence (DataSequence): 学習データのシークエンス
+            train_dataset (tf.data.Dataset): 学習データ
             epochs (int): エポック数
-            valid_sequence (DataSequence, optional): 検証データのシークエンス
+            valid_dataset (tf.data.Dataset, optional): 検証データ
             check_point (CheckPoint, optional): 学習を再開するチェックポイント
             callbacks (List[Callback], optional): コールバック関数
         """
@@ -110,12 +120,15 @@ class DNN(metaclass=ABCMeta):
             self.load(checkpoint.weight_path)
 
         self.__model.fit(
-            x=train_sequence,
-            validation_data=valid_sequence,
+            x=train_dataset,
+            validation_data=valid_dataset,
             epochs=epochs,
             initial_epoch=init_epoch,
+            steps_per_epoch=steps_per_epoch,
+            validation_steps=validation_steps,
             callbacks=callbacks,
         )
+
 
     def test(
         self, test_sequence: DataSequence, model_weight_path: str = None
@@ -262,14 +275,20 @@ class CheckPointCallBack(ModelCheckpoint):
         self.checkpoint_path = checkpoint_path
         self.fold = fold
 
-    def on_epoch_end(self, epoch, logs=None):
+    def on_epoch_end(self, epoch, logs=None) -> None:
         super().on_epoch_end(epoch, logs=logs)
 
         if os.path.exists(self.filepath):
             cp = CheckPoint(self.filepath, epoch, fold=self.fold)
             cp.dump(self.checkpoint_path)
 
+class GCCallback(Callback):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
+    def on_epoch_end(self, epoch, logs=None) -> None:
+        gc.collect()
+    
 class LearningHistory:
     """
     tensorflowのCSVLoggerで保存された学習履歴を扱うクラスです。
@@ -329,9 +348,9 @@ class LearningHistory:
     def concat(cls, histories: List["LearningHistory"]) -> "LearningHistory":
         df_histories = list(map(lambda history: history.df_history, histories))
         df_history = pd.concat(df_histories)
-        
+
         return cls(df_history, df_history.columns.to_list())
-    
+
     @classmethod
     def average(cls, *learning_histories: "LearningHistory") -> "LearningHistory":
         """
@@ -382,7 +401,7 @@ class LearningHistory:
         """
         return self.df_history[metric]
 
-    def save_to(self, file_path: str):
+    def save_to(self, file_path: str) -> None:
         """
         学習履歴を指定したパスに保存します。
 

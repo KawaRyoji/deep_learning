@@ -36,7 +36,7 @@ param = DatasetParams(      # データセットのパラメータ
     batches_per_epoch=None  # エポック当たりのバッチ数
 )
 
-experiment = DNNExperiment(
+experiment = KCVExperiment(
     model,                      # 作成したモデル
     "experimental_result",      # 結果を保存するディレクトリ
     train_set,                  # 学習データセット
